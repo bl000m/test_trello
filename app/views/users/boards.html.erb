@@ -1,0 +1,5 @@
+<ul>
+  <% @data.map{|d| d['name']} .each do |name| %>
+    <li><%= name %></li>
+  <% end %>
+</ul>

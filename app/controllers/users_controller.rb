@@ -1,65 +1,42 @@
-require 'uri'
-require 'awesome_print'
-require 'trello'
-require "cgi"
-require 'oauth'
-require "net/http"
-
 class UsersController < ApplicationController
-  # https://trello.com/1/authorize?return_url=http://toto.com&callback=fragment&scope=read&expiration=never&name=test&key=75b1c40455bee39212ffc46c1ba5be7c&response_type=token
+  OAUTH_CONSUMER = OAuth::Consumer.new(ENV['TRELLO_API_KEY'], ENV['TRELLO_SECRET'],
+                                        {
+                                          site: "https://trello.com/",
+                                          access_token_url: "https://trello.com/1/OAuthGetAccessToken",
+                                          authorize_url: "https://trello.com/1/OAuthAuthorizeToken",
+                                          request_token_url: "https://trello.com/1/OAuthGetRequestToken"
+                                        }
+                                      )
 
-
-
-  TOKEN = nil
-  # callback_url = "https://.../callback"
+  before_action :check_trello_token, only: :boards
 
   def connect_trello_account
-
-    redirect request_token.authorize_url
-    oauth_consumer = OAuth::Consumer.new(ENV[TRELLO_API_KEY],
-                                         ENV[TRELLO_SECRET],
-                                          {
-                                            site: "https://trello.com/",
-                                            access_token_url: "https://trello.com/1/OAuthGetAccessToken",
-                                            authorize_url: "https://trello.com/1/OAuthAuthorizeToken",
-                                            request_token_url: "https://trello.com/1/OAuthGetRequestToken"
-                                          }
-                                        )
-
-    request_token = oauth_consumer.get_request_token(oauth_callback: callback_url)
+    trello_url_to_get_token = request_token.authorize_url
+    ap trello_url_to_get_token
+    redirect_to trello_url_to_get_token
   end
 
   def connect_trello_account_callback
 
     oauth_verifier = params[:oauth_verifier]
-    res = request_token.get_access_token(current_user: oauth_verifier)
-
-    TOKEN = res.token
-    SECRET = res.secret
-
-    if TOKEN.nil?
-      redirect '/connect'
+    res = request_token.get_access_token(oauth_verifier: oauth_verifier)
+    current_user.update(token: res.token, secret: res.secret)
+    redirect_to users_boards_path
   end
 
 
-def get_boards
-  url = URI("https://api.trello.com/1/members/me/boards?key=#{ENV[TRELLO_API_KEY]}&token=#{ENV[TRELLO_SECRET]}")
+def boards
+  url = URI("https://api.trello.com/1/members/me/boards?key=#{ENV['TRELLO_API_KEY']}&token=#{current_user.token}")
 
   https = Net::HTTP.new(url.host, url.port)
   https.use_ssl = true
 
   request = Net::HTTP::Get.new(url)
   response = https.request(request)
-  JSON.parse(response.read_body)
+  @data = JSON.parse(response.read_body)
 end
 
 
-
-
-
-# get '/connect' do
-#   redirect request_token.authorize_url
-# end
 
 # get '/boards' do
 #   if TOKEN.nil?
@@ -82,5 +59,11 @@ end
     params.require(:user).permit(:token, :secret)
   end
 
-end
+  def request_token
+    OAUTH_CONSUMER.get_request_token(oauth_callback: users_connect_trello_account_callback_url)
+  end
+
+  def check_trello_token
+    redirect_to users_connect_trello_account_path if current_user.token.nil?
+  end
 end
