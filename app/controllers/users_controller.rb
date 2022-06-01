@@ -79,7 +79,8 @@ end
   private
 
   def contact_params
-    params.require(:user).permit(:email)
+    params.require(:user).permit(:token, :secret)
   end
 
+end
 end
