@@ -6,8 +6,16 @@ require 'oauth'
 require "net/http"
 
 class UsersController < ApplicationController
+  # https://trello.com/1/authorize?return_url=http://toto.com&callback=fragment&scope=read&expiration=never&name=test&key=75b1c40455bee39212ffc46c1ba5be7c&response_type=token
+
+
+
+  TOKEN = nil
+  # callback_url = "https://.../callback"
 
   def connect_trello_account
+
+    redirect request_token.authorize_url
     oauth_consumer = OAuth::Consumer.new(ENV[TRELLO_API_KEY],
                                          ENV[TRELLO_SECRET],
                                           {
@@ -23,41 +31,31 @@ class UsersController < ApplicationController
 
   def connect_trello_account_callback
 
+    oauth_verifier = params[:oauth_verifier]
+    res = request_token.get_access_token(current_user: oauth_verifier)
+
+    TOKEN = res.token
+    SECRET = res.secret
+
+    if TOKEN.nil?
+      redirect '/connect'
   end
 
-# https://trello.com/1/authorize?return_url=http://toto.com&callback=fragment&scope=read&expiration=never&name=test&key=75b1c40455bee39212ffc46c1ba5be7c&response_type=token
+
+def get_boards
+  url = URI("https://api.trello.com/1/members/me/boards?key=#{ENV[TRELLO_API_KEY]}&token=#{ENV[TRELLO_SECRET]}")
+
+  https = Net::HTTP.new(url.host, url.port)
+  https.use_ssl = true
+
+  request = Net::HTTP::Get.new(url)
+  response = https.request(request)
+  JSON.parse(response.read_body)
+end
 
 
 
-# TOKEN = nil
-# callback_url = "https://.../callback"
 
-
-
-# def get_boards
-#   url = URI("https://api.trello.com/1/members/me/boards?key=#{API_KEY}&token=#{TOKEN}")
-
-#   https = Net::HTTP.new(url.host, url.port)
-#   https.use_ssl = true
-
-#   request = Net::HTTP::Get.new(url)
-#   response = https.request(request)
-#   JSON.parse(response.read_body)
-# end
-
-
-
-# get '/' do
-#   erb :index
-# end
-
-# get '/callback' do
-#   oauth_verifier = params[:oauth_verifier]
-#   res = request_token.get_access_token(oauth_verifier: oauth_verifier)
-
-#   TOKEN = res.token
-#   SECRET = res.secret
-# end
 
 # get '/connect' do
 #   redirect request_token.authorize_url
@@ -77,35 +75,11 @@ class UsersController < ApplicationController
 #     - strore token and secret in current_user model
 
 
-# def create
-#   @contact = Contact.new(contact_params)
-#   if @contact.save
-#     redirect_to root_path
-#     Trello.configure do |config|
-#       config.developer_public_key = ENV['TRELLO_PUBLIC_KEY']
-#       config.member_token = ENV['TRELLO_MEMBER_TOKEN']
-#     end
-#     me = Trello::Member.find("mathia_pagani")
-
-#     # find first board
-#     board = me.boards.first
-#     puts board.name
-#     # puts "Lists: #{board.lists.map {|x| x.name}.join(', ')}"
-#     # puts "Members: #{board.members.map {|x| x.full_name}.join(', ')}"
-#     board.cards.each do |card|
-#           puts "fu"
-#           # puts "-- Actions: #{card.actions.nil? ? 0 : card.actions.count}"
-#           # puts "-- Members: #{card.members.count}"
-#           # puts "-- Labels: #{card.labels.count}"
-#     end
-#   else
-#     render 'new'
-#   end
 
   private
 
   def contact_params
-    params.require(:mail).permit(:create)
+    params.require(:user).permit(:email)
   end
 
 end
